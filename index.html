@@ -5,12 +5,19 @@
 <title>丹阙 · 盛唐宫苑</title>
 <style>
 *{box-sizing:border-box}body{margin:0;background:#241b19;color:#fff5da;font:14px system-ui,sans-serif;overflow:hidden}canvas{display:block;touch-action:none}header,.panel,footer,#notice{position:fixed;z-index:1}header{top:32px;left:36px;pointer-events:none;text-shadow:0 2px 18px #211209}h1{font:clamp(40px,6vw,86px)/1.08 "Songti SC",SimSun,serif;margin:10px 0;letter-spacing:.18em}small{letter-spacing:.38em;color:#f8d38d}.panel{top:30px;right:30px;display:flex;gap:8px}button{font:inherit;background:#221814df;border:1px solid #ffdb8d66;color:inherit;padding:10px 15px;cursor:pointer}button:hover,button:focus-visible{background:#694323}footer{bottom:22px;left:30px;background:#211915df;border-left:2px solid #d6a355;padding:11px 16px;line-height:1.65}#notice{bottom:25px;right:30px;background:#211915df;padding:9px 14px}#notice:empty{display:none}@media(max-width:650px){header{top:14px;left:16px}.panel{top:auto;bottom:76px;right:12px}footer{left:12px;bottom:12px;font-size:12px}#notice{bottom:124px;right:12px}}
+#about{max-width:min(470px,calc(100vw - 32px));padding:26px;background:#211915;color:#fff5da;border:1px solid #bd8f52;line-height:1.75}#about::backdrop{background:#130e0bb8}#about h2{font:30px "Songti SC",SimSun,serif;margin:0 0 12px}#about p{margin:0 0 14px}#about form{text-align:right}
 </style>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.179.1/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.179.1/examples/jsm/"}}</script>
 </head>
 <body>
 <header><small>盛唐 · 皇家宫苑</small><h1>丹阙</h1></header>
-<div class="panel"><button id="mode" aria-pressed="false">入夜</button><button id="court">步入庭院</button><button id="reset">回到全景</button></div>
+<div class="panel"><button id="about-open">宫苑介绍</button><button id="mode" aria-pressed="false">入夜</button><button id="court">步入庭院</button><button id="reset">回到全景</button></div>
+<dialog id="about" aria-labelledby="about-title">
+<h2 id="about-title">丹阙 · 盛唐宫苑</h2>
+<p>宫苑取意于盛唐宫阙。沿朱雀门进入庭院，穿过两侧回廊之间的中轴，抬头可见含元殿的金瓦重檐。殿前，双龙浮雕沿石阶中央的踏道盘绕。</p>
+<p>点宫门可开合，点宫灯可明灭，点钟亭里的铜钟可看它摆动。选择「入夜」，灯火会随天色渐亮。</p>
+<form method="dialog"><button>关闭</button></form>
+</dialog>
 <footer>拖动旋转 · 滚轮缩放 · 右键平移 · WASD 漫游<br>点击宫门、铜钟与宫灯</footer>
 <div id="notice" role="status">正在加载宫苑…</div>
 <script type="module">
@@ -334,6 +341,6 @@ renderer.setAnimationLoop(()=>{
  renderer.render(scene,camera);
 });
 </script>
-<script>addEventListener('error',e=>{const n=document.querySelector('#notice');if(n.textContent==='正在加载宫苑…')n.textContent='宫苑加载失败，请检查 CDN 网络连接与 WebGL 支持。';},true);</script>
+<script>document.querySelector('#about-open').onclick=()=>document.querySelector('#about').showModal();addEventListener('error',e=>{const n=document.querySelector('#notice');if(n.textContent==='正在加载宫苑…')n.textContent='宫苑加载失败，请检查 CDN 网络连接与 WebGL 支持。';},true);</script>
 </body>
 </html>
