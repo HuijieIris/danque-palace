@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>丹阙 · 盛唐宫苑</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#241b19;color:#fff5da;font:14px system-ui,sans-serif;overflow:hidden}canvas{display:block;touch-action:none}header,.panel,footer,#notice{position:fixed;z-index:1}header{top:32px;left:36px;pointer-events:none;text-shadow:0 2px 18px #211209}h1{font:clamp(40px,6vw,86px)/1.08 "Songti SC",SimSun,serif;margin:10px 0;letter-spacing:.18em}small{letter-spacing:.38em;color:#f8d38d}.panel{top:30px;right:30px;display:flex;gap:8px}button{font:inherit;background:#221814df;border:1px solid #ffdb8d66;color:inherit;padding:10px 15px;cursor:pointer}button:hover,button:focus-visible{background:#694323}footer{bottom:22px;left:30px;background:#211915df;border-left:2px solid #d6a355;padding:11px 16px;line-height:1.65}#notice{bottom:25px;right:30px;background:#211915df;padding:9px 14px}#notice:empty{display:none}@media(max-width:650px){header{top:14px;left:16px}.panel{top:auto;bottom:76px;right:12px}footer{left:12px;bottom:12px;font-size:12px}#notice{bottom:124px;right:12px}}
+</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.179.1/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.179.1/examples/jsm/"}}</script>
+</head>
+<body>
+<header><small>盛唐 · 皇家宫苑</small><h1>丹阙</h1></header>
+<div class="panel"><button id="mode" aria-pressed="false">入夜</button><button id="court">步入庭院</button><button id="reset">回到全景</button></div>
+<footer>拖动旋转 · 滚轮缩放 · 右键平移 · WASD 漫游<br>点击宫门、铜钟与宫灯</footer>
+<div id="notice" role="status">正在加载宫苑…</div>
+<script type="module">
+import * as T from 'three';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+const scene=new T.Scene(), camera=new T.PerspectiveCamera(45,innerWidth/innerHeight,.15,350);
+const renderer=new T.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,1.65));
+renderer.setSize(innerWidth,innerHeight);
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=T.PCFSoftShadowMap;
+renderer.toneMapping=T.ACESFilmicToneMapping;
+document.body.prepend(renderer.domElement);
+const controls=new OrbitControls(camera,renderer.domElement);
+controls.enableDamping=true;controls.maxPolarAngle=Math.PI*.495;controls.minDistance=2;controls.maxDistance=125;
+controls.zoomToCursor=true;
+const V=(x,y,z)=>new T.Vector3(x,y,z);
+function view(position,target){camera.position.copy(position);controls.target.copy(target);controls.update();}
+view(V(37,25,55),V(0,5,-5));
+const hemi=new T.HemisphereLight(0xffead8,0x574557,2);
+const sun=new T.DirectionalLight(0xffc27e,3.2);
+sun.position.set(-26,35,21);sun.castShadow=true;
+Object.assign(sun.shadow.camera,{left:-46,right:46,top:45,bottom:-45,far:120});
+sun.shadow.mapSize.set(2048,2048);sun.shadow.normalBias=.055;
+scene.add(hemi,sun);
+scene.fog=new T.FogExp2(0xd09b7b,.009);
+const sky=new T.Mesh(new T.SphereGeometry(140,40,24),new T.ShaderMaterial({
+side:T.BackSide, depthWrite:false,
+uniforms:{night:{value:0}},
+vertexShader:'varying vec3 p; void main(){p=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+fragmentShader:`varying vec3 p; uniform float night;
+void main(){vec3 d=normalize(p);float h=smoothstep(-.04,.65,d.y);
+vec3 day=mix(vec3(.88,.49,.30),vec3(.15,.36,.57),h);
+vec3 n=mix(vec3(.14,.17,.27),vec3(.012,.028,.079),h);
+float s=max(0.,dot(d,normalize(vec3(-.65,.23,-.75))));
+day+=vec3(1.,.48,.18)*(pow(s,12.)*.29+smoothstep(.9988,.9994,s));
+vec2 a=vec2(atan(d.z,d.x),asin(d.y))*450.;vec2 cell=floor(a);
+float r=fract(sin(dot(cell,vec2(127.1,311.7)))*43758.5453);
+n+=vec3(.56,.68,.92)*step(.991,r)*(1.-smoothstep(.06,.22,length(fract(a)-.5)))*smoothstep(.05,.18,d.y);
+gl_FragColor=vec4(mix(day,n,night),1.); #include <colorspace_fragment>
+}`.replace(' #include','\n#include')
+}));scene.add(sky);
+const mat=(color,roughness=.65,metalness=0)=>new T.MeshStandardMaterial({color,roughness,metalness});
+const red=mat(0x8a241d,.37), dark=mat(0x361414), gold=mat(0xc18429,.31,.48), jade=mat(0x174d4b), ivory=mat(0xc0a892), bronze=mat(0x75613e,.36,.65);
+let seed=43;
+function random(){seed=(1664525*seed+1013904223)>>>0;return seed/4294967296;}
+function stoneMap(){
+ const c=document.createElement('canvas');c.width=c.height=256;const ctx=c.getContext('2d');
+ ctx.fillStyle='#b5a895';ctx.fillRect(0,0,256,256);
+ for(let i=0;i<9500;i++){ctx.fillStyle=random()<.5?'#fff1':'#29180f16';ctx.fillRect(random()*256,random()*256,1+random()*4,1+random()*2);}
+ const t=new T.CanvasTexture(c);t.colorSpace=T.SRGBColorSpace;return t;
+}
+const stone=mat(0xd3bd9f);stone.map=stoneMap();
+const cube=new T.BoxGeometry(1,1,1),column=new T.CylinderGeometry(1,1,1,16),sphere=new T.SphereGeometry(1,16,10);
+function mesh(parent,geo,material,x,y,z,sx=1,sy=1,sz=1){
+ const o=new T.Mesh(geo,material);o.position.set(x,y,z);o.scale.set(sx,sy,sz);o.castShadow=true;o.receiveShadow=true;parent.add(o);return o;
+}
+const box=(p,m,x,y,z,w,h,d)=>mesh(p,cube,m,x,y,z,w,h,d);
+const cyl=(p,m,x,y,z,r,h)=>mesh(p,column,m,x,y,z,r,h,r);
+function group(p,x,y,z){const g=new T.Group();g.position.set(x,y,z);p.add(g);return g;}
+function tube(p,m,points,r,segments=24){
+ return mesh(p,new T.TubeGeometry(new T.CatmullRomCurve3(points),segments,r,6,false),m,0,0,0);
+}
+const tileMats=[0xbd7323,0xda952f,0xe5aa42,0xa65d19].map(c=>mat(c,.34,.27));
+function roof(p,y,w,d,rise){
+ const g=group(p,0,y,0), a=w/2,b=d/2,r=a*.64;
+ const tiles=tileMats.map(()=>[]), sample=new T.Object3D();
+ function surface(side,u,t){
+  const x=a+(r-a)*t,z=b*(1-t);
+  const corner=Math.pow(Math.abs(u),5)*Math.pow(1-t,3)*.78;
+  const h=rise*(.30*t+.70*t*t)+corner;
+  return side<2?V(u*x,h,(side===0?1:-1)*z):V((side===2?1:-1)*x,h,u*z);
+ }
+ for(let side=0;side<4;side++){
+  const vertices=[],indices=[], nx=32,ny=16;
+  for(let j=0;j<=ny;j++)for(let i=0;i<=nx;i++)vertices.push(...surface(side,2*i/nx-1,j/ny).toArray());
+  for(let j=0;j<ny;j++)for(let i=0;i<nx;i++){const k=j*(nx+1)+i;indices.push(k,k+1,k+nx+1,k+1,k+nx+2,k+nx+1);}
+  const geom=new T.BufferGeometry();geom.setAttribute('position',new T.Float32BufferAttribute(vertices,3));geom.setIndex(indices);geom.computeVertexNormals();
+  const base=tileMats[3].clone();base.side=T.DoubleSide;mesh(g,geom,base,0,0,0);
+  const cols=Math.ceil((side<2?w:d)/.31), rows=Math.ceil((side<2?b:a-r)/.36)+3;
+  for(let i=0;i<=cols;i++)for(let j=0;j<rows;j++){
+   const u=2*i/cols-1, from=surface(side,u,j/rows),to=surface(side,u,(j+1)/rows);
+   sample.position.copy(from).lerp(to,.5);sample.position.y+=.037;
+   sample.quaternion.setFromUnitVectors(V(0,1,0),to.clone().sub(from).normalize());
+   sample.scale.set(.084,from.distanceTo(to)*1.13,.084);sample.updateMatrix();
+   tiles[Math.floor(random()*4)].push(sample.matrix.clone());
+  }
+  tube(g,gold,Array.from({length:17},(_,i)=>surface(side,i/8-1,0)),.105);
+  if(side<2)for(const u of [-1,1])tube(g,gold,Array.from({length:13},(_,i)=>surface(side,u,i/12)),.14);
+ }
+ const tileGeometry=new T.CylinderGeometry(1,1,1,7);
+ tiles.forEach((matrices,i)=>{
+  const inst=new T.InstancedMesh(tileGeometry,tileMats[i],matrices.length);
+  matrices.forEach((m,j)=>inst.setMatrixAt(j,m));inst.castShadow=true;inst.receiveShadow=true;g.add(inst);
+ });
+ tube(g,gold,[V(-r-.55,rise+.52,0),V(-r,rise+.15,0),V(0,rise+.14,0),V(r,rise+.15,0),V(r+.55,rise+.52,0)],.19);
+ for(const sign of [-1,1]){
+  const x=sign*r;
+  tube(g,gold,[V(x-sign*.35,rise+.15,0),V(x+sign*.4,rise+.31,0),V(x+sign*.65,rise+.83,0),V(x+sign*.39,rise+1.03,0)],.12);
+ }
+}
+function post(p,x,z,h,r){
+ cyl(p,stone,x,.13,z,r*1.46,.26);
+ cyl(p,red,x,h/2+.12,z,r,h);
+ cyl(p,gold,x,.37,z,r*1.06,.09);
+ for(let i=0;i<3;i++){
+  box(p,jade,x,h-.13+i*.15,z,r*(2.9+i*.8),.14,r*(3+i*.9));
+  box(p,gold,x,h-.06+i*.15,z,r*(2.9+i*.8),.035,r*(3+i*.9));
+ }
+}
+function beam(p,y,w,d){
+ box(p,red,0,y,0,w,.56,d);box(p,jade,0,y+.21,0,w+.14,.22,d+.14);
+ box(p,gold,0,y+.34,0,w+.27,.065,d+.27);
+ for(let x=-w/2+.35;x<w/2;x+=.55)for(const z of [-d/2,d/2])box(p,gold,x,y,z,.13,.16,.065);
+}
+const actions=new Map(), lamps=[], doors=[], bells=[];
+function lantern(p,x,y,z,light=false){
+ const g=group(p,x,y,z);
+ const glow=new T.MeshStandardMaterial({color:0xc45524,emissive:0xff6818,emissiveIntensity:.08,roughness:.62});
+ mesh(g,sphere,glow,0,0,0,.33,.43,.33);
+ for(const s of [-1,1]){cyl(g,gold,0,s*.37,0,.19,.08);cyl(g,dark,0,s*.46,0,.05,.12);}
+ for(let i=0;i<8;i++){
+  const a=i*Math.PI/4;tube(g,gold,[-1,-.5,0,.5,1].map(t=>V(Math.cos(a)*(.17+.17*(1-t*t)),.37*t,Math.sin(a)*(.17+.17*(1-t*t)))),.012,8);
+ }
+ const bulb=light?new T.PointLight(0xff8e32,0,8,2):null;if(bulb)g.add(bulb);
+ const l={glow,bulb,on:null};lamps.push(l);
+ actions.set(g,()=>{l.on=!(l.on??(night>.5));return l.on?'宫灯已点亮':'宫灯已熄灭';});
+}
+function lattice(p,x,y,z,w,h){
+ box(p,dark,x,y,z,w,h,.18);
+ for(let i=0;i<8;i++)box(p,red,x+w*(i/7-.5),y,z+.115,.065,h,.08);
+ for(let j=0;j<5;j++)box(p,j%2?jade:red,x,y+h*(j/4-.5),z+.12,w,.075,.08);
+ box(p,gold,x,y+h/2,z+.12,w,.04,.09);
+}
+const hall=group(scene,0,1.65,-14);
+box(scene,stone,0,.82,-14,29,1.64,16);box(scene,ivory,0,1.56,-14,29.3,.18,16.3);
+box(hall,dark,0,2.15,0,22,4.3,9);
+for(let i=-4;i<=4;i++)for(const z of [-5,5])post(hall,i*2.9,z,4.6,.27);
+for(let i=-4;i<4;i++){
+ lattice(hall,(i+.5)*2.9,2.48,4.56,2.57,3.45);
+ if(i%2===0)lantern(hall,(i+.5)*2.9,3.49,5.16,true);
+}
+beam(hall,4.64,24.5,10.8);roof(hall,4.91,28,15,2.75);
+box(hall,jade,0,7.25,0,16.7,2.1,5);
+for(let i=-3;i<=3;i++)for(const z of [-2.6,2.6])post(hall,i*2.56,z,8.1,.16);
+for(let i=-3;i<3;i++)lattice(hall,(i+.5)*2.56,7.68,2.53,2.32,.89);
+beam(hall,8.18,17.7,5.8);roof(hall,8.52,21.2,9.5,2.45);
+function plaque(p,label,y,z){
+ const c=document.createElement('canvas');c.width=512;c.height=160;
+ const ctx=c.getContext('2d');ctx.fillStyle='#143638';ctx.fillRect(0,0,512,160);
+ ctx.strokeStyle='#d6a759';ctx.lineWidth=9;ctx.strokeRect(12,12,488,136);
+ ctx.fillStyle='#f4cf83';ctx.textAlign='center';ctx.textBaseline='middle';ctx.font='bold 84px "Songti SC",serif';ctx.fillText(label,256,86);
+ const map=new T.CanvasTexture(c);map.colorSpace=T.SRGBColorSpace;
+ mesh(p,new T.PlaneGeometry(3.05,.95),new T.MeshBasicMaterial({map}),0,y,z);
+}
+plaque(hall,'含元殿',4.23,5.51);
+for(let i=0;i<10;i++){
+ const h=1.65*(1-i/10);box(scene,stone,0,h/2,-5.99+i*.52,11,h,.55);
+}
+const ramp=box(scene,ivory,0,.82,-3.68,2.8,.22,5.4);ramp.rotation.x=.31;
+function dragon(x,phase){
+ const pts=Array.from({length:37},(_,i)=>{const t=i/36;return V(x+Math.sin(t*14+phase)*.47,.96+(.5-t)*1.61,-6+t*4.64);});
+ tube(scene,stone,pts,.105,55);
+ pts.forEach((p,i)=>{if(i%2===0)mesh(scene,sphere,ivory,p.x,p.y+.09,p.z,.085,.045,.072);});
+ const h=pts[0];mesh(scene,sphere,stone,h.x,h.y+.03,h.z,.24,.14,.24);
+ for(const s of [-1,1])tube(scene,ivory,[h.clone(),h.clone().add(V(s*.24,.08,.08)),h.clone().add(V(s*.27,.13,.29))],.037,8);
+}
+dragon(-.55,0);dragon(.55,Math.PI);
+for(let i=-14;i<=14;i+=2){
+ for(const z of [-21.6,-6.4]){
+  if(z>-10&&Math.abs(i)<6)continue;
+  box(scene,stone,i,1.99,z,.19,.72,.19);box(scene,ivory,i,2.35,z,.29,.13,.29);
+  if(i<14&&(z<-10||Math.abs(i+1)>6))box(scene,stone,i+1,2.04,z,2,.16,.14);
+ }
+}
+const gate=group(scene,0,0,13);
+for(const x of [-5,-2.1,2.1,5])for(const z of [-1.85,1.85])post(gate,x,z,3.9,.24);
+for(const x of [-3.57,3.57]){
+ box(gate,red,x,1.76,0,2.55,3.52,.48);
+ lantern(gate,x,2.84,2.12,true);lantern(gate,x,2.84,-2.12,true);
+}
+beam(gate,4.05,10.8,4.15);roof(gate,4.35,13.2,6.8,2.16);plaque(gate,'朱雀门',3.69,2.13);
+for(const sign of [-1,1]){
+ const g=group(gate,sign*1.99,0,0),x=-sign*.98;
+ box(g,red,x,1.65,0,1.94,3.22,.2);
+ for(const y of [.28,1.08,2.21,3.04])box(g,dark,x,y,0,1.96,.105,.26);
+ for(const face of [-1,1])for(let i=0;i<5;i++)for(let j=0;j<6;j++)mesh(g,sphere,gold,x+(i-2)*.34,.48+j*.46,face*.12,.063,.063,.038);
+ doors.push({g,sign});actions.set(g,toggleGate);
+}
+let open=false;
+function toggleGate(){open=!open;return open?'朱雀门开启':'朱雀门关闭';}
+for(const side of [-1,1]){
+ const walk=group(scene,side*17,0,-5);walk.rotation.y=Math.PI/2;
+ box(walk,stone,0,.2,0,28,.4,3.8);
+ for(let x=-13.5;x<=13.5;x+=3)for(const z of [-1.55,1.55])post(walk,x,z,2.8,.16);
+ beam(walk,2.97,28,3.5);roof(walk,3.26,29.2,5.4,1.64);
+ for(let x=-10.5;x<=10.5;x+=7)lantern(walk,x,2.34,side*1.47);
+ const pavilion=group(scene,side*17,0,11);
+ box(pavilion,stone,0,.26,0,5.6,.52,5.6);
+ for(const x of [-2,2])for(const z of [-2,2])post(pavilion,x,z,4.28,.23);
+ beam(pavilion,4.41,4.65,4.65);roof(pavilion,4.72,6.7,6.7,1.95);
+ const pivot=group(pavilion,0,4.13,0);
+ cyl(pivot,bronze,0,-.23,0,.055,.46);
+ const profile=[[0,-.45],[.23,-.45],[.43,-.59],[.52,-.81],[.57,-1.28],[.7,-1.53],[.76,-1.59],[.76,-1.7],[.66,-1.7],[.6,-1.58],[.48,-1.29],[.42,-.83],[.34,-.67],[0,-.55]];
+ mesh(pivot,new T.LatheGeometry(profile.map(([x,y])=>new T.Vector2(x,y)),48),bronze,0,0,0);
+ for(const [y,r] of [[-1.59,.75],[-1.26,.57],[-.84,.52]]){const o=mesh(pivot,new T.TorusGeometry(r,.026,8,48),gold,0,y,0);o.rotation.x=Math.PI/2;}
+ for(let i=0;i<8;i++){const a=i*Math.PI/4;mesh(pivot,sphere,gold,.564*Math.cos(a),-1.31,.564*Math.sin(a),.065,.065,.065);}
+ const bell={pivot,start:-100};bells.push(bell);actions.set(pivot,()=>{bell.start=clock.elapsedTime;return '铜钟已敲响';});
+}
+const ground=box(scene,mat(0x7e674e),0,-.25,0,220,.45,220);ground.castShadow=false;
+const paving=Array.from({length:5},(_,i)=>{const m=mat([0xb6a18b,0xbba891,0xab9984,0xc3af95,0xb19c86][i]);m.map=stone.map;return m;});
+const slabs=paving.map(()=>[]);
+for(let j=0;j<30;j++)for(let i=0;i<23;i++)slabs[Math.floor(random()*5)].push([i*1.8-19.8+(j%2)*.22,j*1.8-24]);
+const obj=new T.Object3D();
+slabs.forEach((list,i)=>{
+ const inst=new T.InstancedMesh(cube,paving[i],list.length);
+ list.forEach(([x,z],j)=>{obj.position.set(x,-.035,z);obj.scale.set(1.775,.09,1.775);obj.updateMatrix();inst.setMatrixAt(j,obj.matrix);});
+ inst.receiveShadow=true;scene.add(inst);
+});
+for(const side of [-1,1]){
+ for(const z of [-19,-13,-7,-1,5,20,26]){
+  const x=side*(z>15?6.5:11.5);
+  box(scene,stone,x,.16,z,.69,.32,.69);box(scene,stone,x,.57,z,.29,.68,.29);
+  box(scene,ivory,x,.9,z,.51,.13,.51);lantern(scene,x,1.27,z);
+ }
+ const wall=group(scene,side*21.4,0,-1);
+ box(wall,red,0,1.4,0,.55,2.8,53);box(wall,stone,0,.36,0,.78,.72,53);box(wall,gold,0,2.86,0,.92,.18,53);
+ for(let z=-25;z<=25;z+=5)box(wall,dark,0,1.6,z,.82,3.2,.65);
+}
+box(scene,red,0,1.5,-25.8,43,3,.6);box(scene,gold,0,3.06,-25.8,43.2,.18,.95);
+const flags=[];
+const flagCanvas=document.createElement('canvas');flagCanvas.width=128;flagCanvas.height=256;
+const fctx=flagCanvas.getContext('2d');fctx.fillStyle='#8d2115';fctx.fillRect(0,0,128,256);fctx.strokeStyle='#e9b962';fctx.lineWidth=6;fctx.strokeRect(9,9,110,238);
+fctx.beginPath();fctx.arc(64,101,34,0,7);fctx.stroke();fctx.fillStyle='#ebbd69';fctx.font='bold 46px "Songti SC",serif';fctx.textAlign='center';fctx.fillText('唐',64,118);
+const flagMap=new T.CanvasTexture(flagCanvas);flagMap.colorSpace=T.SRGBColorSpace;
+const cloth=new T.MeshStandardMaterial({map:flagMap,side:T.DoubleSide,roughness:.85});
+for(const x of [-9,9,-12,12])for(const z of [x%2?6:19]){
+ const p=group(scene,x,0,z);cyl(p,stone,0,.17,0,.37,.34);cyl(p,red,0,3,0,.068,5.7);mesh(p,sphere,gold,0,5.91,0,.15,.19,.15);
+ const rail=cyl(p,gold,.66,5.66,0,.038,1.52);rail.rotation.z=Math.PI/2;
+ const geo=new T.PlaneGeometry(1.34,2.36,16,24);
+ const flag=mesh(p,geo,cloth,.72,4.48,0);flags.push({flag,base:geo.attributes.position.array.slice(),phase:x});
+}
+const fogCanvas=document.createElement('canvas');fogCanvas.width=128;fogCanvas.height=128;
+const fc=fogCanvas.getContext('2d'), gradient=fc.createRadialGradient(64,64,0,64,64,64);
+gradient.addColorStop(0,'rgba(255,255,255,.85)');gradient.addColorStop(.42,'rgba(255,255,255,.36)');gradient.addColorStop(1,'rgba(255,255,255,0)');
+fc.fillStyle=gradient;fc.fillRect(0,0,128,128);
+const mistMap=new T.CanvasTexture(fogCanvas), mists=[];
+for(let i=0;i<21;i++){
+ const o=new T.Sprite(new T.SpriteMaterial({map:mistMap,color:0xf5cfb5,opacity:.12,depthWrite:false}));
+ o.scale.set(12+random()*8,.45+random()*.9,1);o.position.set(random()*52-26,.25+random()*1.4,random()*48-23);scene.add(o);mists.push({o,x:o.position.x,phase:random()*6});
+}
+const hills=mat(0x55535c,.98);
+for(let i=0;i<35;i++){
+ const a=i/35*Math.PI*2,r=62+random()*22;
+ const o=mesh(scene,new T.DodecahedronGeometry(1,1),hills,Math.cos(a)*r,-4,Math.sin(a)*r,9+random()*14,7+random()*13,6+random()*12);o.rotation.y=a;
+}
+const notice=document.querySelector('#notice');
+const nightButton=document.querySelector('#mode');
+let after=0,night=0,wantsNight=false, flight;
+function show(message){notice.textContent=message;clearTimeout(after);after=setTimeout(()=>notice.textContent='',2100);}
+nightButton.onclick=()=>{wantsNight=!wantsNight;nightButton.textContent=wantsNight?'破晓':'入夜';nightButton.setAttribute('aria-pressed',wantsNight);};
+const clock=new T.Clock(), ray=new T.Raycaster(), pointer=new T.Vector2();
+function fly(p,t){flight={from:camera.position.clone(),target:controls.target.clone(),p,t,start:clock.elapsedTime};}
+document.querySelector('#court').onclick=()=>fly(V(8,4.8,8.5),V(0,4.4,-14));
+document.querySelector('#reset').onclick=()=>fly(V(37,25,55),V(0,5,-5));
+const canvas=renderer.domElement;
+let down;
+canvas.addEventListener('pointerdown',e=>{flight=null;down=[e.clientX,e.clientY,e.button];});
+canvas.addEventListener('pointerup',e=>{
+ if(!down||down[2]!==0||Math.hypot(e.clientX-down[0],e.clientY-down[1])>6)return;
+ pointer.set(e.clientX/innerWidth*2-1,1-e.clientY/innerHeight*2);ray.setFromCamera(pointer,camera);
+ const hits=ray.intersectObjects(scene.children,true);
+ for(const hit of hits){
+  if(hit.object.isSprite)continue;
+  for(let o=hit.object;o;o=o.parent){
+   if(actions.has(o)){show(actions.get(o)());return;}
+  }
+  break;
+ }
+});
+const keys=new Set();
+addEventListener('keydown',e=>{if(!e.altKey&&!e.ctrlKey&&!e.metaKey&&['KeyW','KeyA','KeyS','KeyD'].includes(e.code)){keys.add(e.code);flight=null;}});
+addEventListener('keyup',e=>keys.delete(e.code));addEventListener('blur',()=>keys.clear());
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
+const dayFog=new T.Color(0xd09b7b),nightFog=new T.Color(0x18253d),daySun=new T.Color(0xffc27e),nightSun=new T.Color(0x9ebdff);
+notice.textContent='';
+renderer.setAnimationLoop(()=>{
+ const dt=Math.min(clock.getDelta(),.05),t=clock.elapsedTime;
+ if(flight){
+  const n=Math.min((t-flight.start)/1.3,1),s=n*n*(3-2*n);
+  view(flight.from.clone().lerp(flight.p,s),flight.target.clone().lerp(flight.t,s));if(n===1)flight=null;
+ }
+ if(keys.size){
+  const f=camera.getWorldDirection(V(0,0,0));f.y=0;f.normalize();const right=V(-f.z,0,f.x);
+  const move=f.multiplyScalar(Number(keys.has('KeyW'))-Number(keys.has('KeyS'))).addScaledVector(right,Number(keys.has('KeyD'))-Number(keys.has('KeyA')));
+  move.normalize().multiplyScalar(dt*7);camera.position.add(move);controls.target.add(move);
+ }
+ controls.update();sky.position.copy(camera.position);
+ night=T.MathUtils.damp(night,wantsNight?1:0,2.2,dt);
+ sky.material.uniforms.night.value=night;
+ scene.fog.color.copy(dayFog).lerp(nightFog,night);
+ sun.color.copy(daySun).lerp(nightSun,night);sun.intensity=T.MathUtils.lerp(3.2,.66,night);
+ hemi.intensity=T.MathUtils.lerp(2,.78,night);
+ hemi.color.set(0xffead8).lerp(nightSun,night);
+ for(const l of lamps){
+  const power=l.on===null?night:Number(l.on);
+  l.glow.emissiveIntensity=T.MathUtils.damp(l.glow.emissiveIntensity,.08+3.9*power,6,dt);
+  if(l.bulb)l.bulb.intensity=19*l.glow.emissiveIntensity;
+ }
+ for(const {g,sign} of doors)g.rotation.y=T.MathUtils.damp(g.rotation.y,open?-sign*1.46:0,5,dt);
+ for(const {pivot,start} of bells){const elapsed=t-start;pivot.rotation.x=.38*Math.exp(-elapsed*.7)*Math.sin(elapsed*8);}
+ for(const {flag,base,phase} of flags){
+  const a=flag.geometry.attributes.position;
+  for(let i=0;i<a.count;i++){
+   const x=base[i*3],y=base[i*3+1], hang=(1.18-y)/2.36;
+   a.setZ(i,hang*(Math.sin(x*6-y*3.4+t*4+phase)*.24+Math.sin(t*2+y*4)*.09));
+  }
+  a.needsUpdate=true;flag.geometry.computeVertexNormals();
+ }
+ for(const {o,x,phase} of mists){o.position.x=x+Math.sin(t*.16+phase)*5;o.material.opacity=.16+night*.04;}
+ renderer.render(scene,camera);
+});
+</script>
+<script>addEventListener('error',e=>{const n=document.querySelector('#notice');if(n.textContent==='正在加载宫苑…')n.textContent='宫苑加载失败，请检查 CDN 网络连接与 WebGL 支持。';},true);</script>
+</body>
+</html>
